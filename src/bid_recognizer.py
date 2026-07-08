@@ -24,10 +24,14 @@ class BidFileRecognizer:
         '投标截止', '开标时间', '投标有效期', '投标保证金',
         '评标办法', '技术规格', '商务条款', '合同条款',
         '资格要求', '资质要求', '资格审查',
+        # 竞争性磋商专用
+        '竞争性磋商', '磋商邀请', '磋商文件', '磋商须知',
+        '响应文件格式', '响应文件', '评审方法', '评审标准',
         # 辅助识别
-        '采购项目', '采购公告', '采购人',
+        '采购项目', '采购公告', '采购人', '采购代理机构',
         '投标人资格', '投标人资质', '联合体投标',
         '招标范围', '项目需求', '技术需求',
+        '采购项目编号', '采购编号', '项目编号',
         'bidding', 'tender', 'RFP', 'RFQ',
     ]
 
@@ -38,9 +42,11 @@ class BidFileRecognizer:
     ]
 
     SUPPORTED_EXTENSIONS = {
-        '.pdf', '.docx', '.doc', '.txt', '.md',
+        '.pdf', '.docx', '.doc', '.txt',
         '.xlsx', '.xls', '.csv',
     }
+
+    EXCLUDE_FILENAMES = {'readme.md', 'readme.txt'}
 
     def __init__(self, input_dir: str = None):
         if input_dir is None:
@@ -76,6 +82,8 @@ class BidFileRecognizer:
         for f in os.listdir(self.input_dir):
             full_path = os.path.join(self.input_dir, f)
             if os.path.isfile(full_path) and not f.startswith('~'):
+                if f.lower() in self.EXCLUDE_FILENAMES:
+                    continue
                 ext = os.path.splitext(f)[1].lower()
                 if ext in self.SUPPORTED_EXTENSIONS or ext == '':
                     files.append(full_path)
@@ -258,12 +266,12 @@ class BidFileRecognizer:
         if bidding_count > 0:
             print(f"\n  【待处理的招标文件】")
             for f in result['bidding_docs']:
-                print(f"  ✓ {f['filename']} ({f['size_kb']}KB, 置信度:{f.get('confidence','-')})")
+                print(f"  [OK] {f['filename']} ({f['size_kb']}KB, 置信度:{f.get('confidence','-')})")
         
         if other_count > 0:
             print(f"\n  【已跳过的非招标文件】")
             for f in result['other_files']:
-                print(f"  ✗ {f['filename']} - {f.get('reason', '')}")
+                print(f"  [??] {f['filename']} - {f.get('reason', '')}")
 
         if unrecognized_count > 0:
             print(f"\n  【无法识别的文件（请手动确认）】")

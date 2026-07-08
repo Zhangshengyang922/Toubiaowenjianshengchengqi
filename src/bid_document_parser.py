@@ -31,6 +31,7 @@ class BiddingDocumentParser:
         # ------ 提取流程 ------
         self._extract_project_info()       # 1. 项目名称、编号、招标人
         self._extract_dates()              # 2. 开标日期（核心）
+        self._extract_agency()             # 2.5 采购代理机构
         self._extract_cover_requirements() # 3. 封面格式要求
         self._extract_document_order()     # 4. 投标文件组成及顺序
         self._extract_format_specs()       # 5. 装订/签署/密封要求
@@ -248,6 +249,30 @@ class BiddingDocumentParser:
         if m:
             return f"{m.group(1)}年{m.group(2)}月{m.group(3)}日"
         return raw
+
+    # ==================== 2.5 采购代理机构 ====================
+
+    def _extract_agency(self):
+        """提取采购代理机构名称"""
+        text = self.full_text
+        agency = None
+
+        patterns = [
+            r'(?:采购代理机构|招标代理机构|代理机构)[：:\s]*([^\n]{4,40}?)(?:\n|地址|联系人|电话|$)',
+            r'([^\n]{4,30}(?:招标|代理|咨询|管理)(?:有限|股份)?公司)\s*受\s*[^\n]{2,20}\s*(?:委托|的委托)',
+            r'(?:我司|我公司)\s*[：:在]?\s*([^\n]{4,30}(?:招标|代理|咨询|管理)(?:有限|股份)?公司)',
+            r'代理机构[：:\s]*地址',
+        ]
+        for pat in patterns:
+            m = re.search(pat, text)
+            if m:
+                agency = m.group(1).strip().rstrip('，。；')
+                if agency and len(agency) >= 4:
+                    break
+
+        if agency:
+            self.project_info['agency_name'] = agency
+            self._debug_extractions['agency'] = 'found'
 
     # ==================== 3. 封面格式要求 ====================
 
