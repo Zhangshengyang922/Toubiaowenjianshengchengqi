@@ -1,0 +1,79 @@
+{
+    "_description": "投标文件主模板，各章节按招标文件要求动态填充",
+    
+    "cover": {
+        "title": "{{ project_name }}",
+        "subtitle": "投标文件",
+        "bidder_name": "{{ bidder_name }}",
+        "date": "{{ submission_date }}",
+        "seal_hint": "（投标人公章）"
+    },
+
+    "bid_letter": {
+        "title": "一、投标函",
+        "to": "{{ tenderee_name }}",
+        "content": "我方（投标人名称：{{ bidder_name }}）在仔细研究了 {{ project_name }}（项目编号：{{ project_id }}）的招标文件（包括澄清和补充通知）的全部内容后，决定参加该项目的投标。",
+        "commitments": [
+            "我方愿意按照招标文件的要求，以人民币 {{ bid_amount }} 元的总报价承担本项目。",
+            "如果我方中标，我方保证在合同签订后 {{ implementation_period }} 内完成本项目。",
+            "我方提交的投标文件在投标截止日后 {{ validity_days }} 天内有效。",
+            "我方承诺不将中标项目转包或违法分包。",
+            "我方理解并同意，贵方不一定要接受最低报价的投标或其他任何投标。"
+        ],
+        "closing": "投标人：{{ bidder_name }}\n法定代表人或授权代表：_________（签字）\n日期：{{ submission_date }}\n地址：{{ bidder_address }}\n电话：{{ bidder_phone }}"
+    },
+
+    "authorization_letter": {
+        "title": "二、法定代表人授权委托书",
+        "content": "本授权委托书声明：我 {{ legal_representative }} 系 {{ bidder_name }} 的法定代表人，现授权 {{ authorized_person }} 为我方代理人，以我方的名义参加 {{ project_name }}（项目编号：{{ project_id }}）的投标活动。代理人在投标、开标、评标、合同谈判过程中所签署的一切文件和处理与之有关的一切事务，我方均予以承认。代理人无转委托权。",
+        "legal_representative": "法定代表人（签字）：_________",
+        "authorized_person_sign": "授权代表（签字）：_________",
+        "date": "日期：{{ submission_date }}"
+    },
+
+    "bid_summary_table": {
+        "title": "三、开标一览表",
+        "project_name": "项目名称：{{ project_name }}",
+        "project_id": "项目编号：{{ project_id }}",
+        "rows": [
+            {"item": "投标总报价", "content": "{{ bid_amount }} 元"},
+            {"item": "实施周期", "content": "{{ implementation_period }}"},
+            {"item": "质保期", "content": "{{ warranty_period }}"},
+            {"item": "投标有效期", "content": "{{ validity_days }} 天"},
+            {"item": "备注", "content": "{{ bid_remark }}"}
+        ]
+    },
+
+    "technical_proposal": {
+        "title": "四、技术方案",
+        "intro": "针对 {{ project_name }} 的技术要求，我方提出以下技术方案：",
+        "sections": "{{ technical_sections }}"
+    },
+
+    "implementation_plan": {
+        "title": "五、项目实施方案",
+        "intro": "为确保 {{ project_name }} 的顺利实施，我方制定以下实施方案：",
+        "schedule": "{{ implementation_schedule }}",
+        "team_structure": "{{ team_structure }}",
+        "quality_assurance": "{{ quality_assurance }}"
+    },
+
+    "qualifications": {
+        "title": "六、公司资质证明",
+        "business_license": "营业执照注册号：{{ business_license_no }}",
+        "registered_capital": "注册资本：{{ registered_capital }}",
+        "established_date": "成立日期：{{ established_date }}",
+        "attached_docs": "{{ qualification_docs }}"
+    },
+
+    "performance": {
+        "title": "七、类似项目业绩",
+        "intro": "我方近三年完成的类似项目业绩如下：",
+        "project_list": "{{ performance_list }}"
+    },
+
+    "appendices": {
+        "title": "八、附录",
+        "items": "{{ appendix_items }}"
+    }
+}

@@ -1,0 +1,8 @@
+python-docx
+PyPDF2
+jinja2
+pandas
+neo4j-driver
+openai
+langchain
+scikit-learn

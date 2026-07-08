@@ -1,0 +1,50 @@
+{
+    "_description": "投标方公司基础信息，实际使用时替换为真实数据",
+    "company": {
+        "bidder_name": "XX科技有限公司",
+        "bidder_address": "XX省XX市XX区XX路XX号",
+        "bidder_phone": "010-XXXXXXXX",
+        "legal_representative": "张三",
+        "authorized_person": "李四",
+        "business_license_no": "91110000XXXXXXXXXX",
+        "registered_capital": "5000万元",
+        "established_date": "2010年6月",
+        "scope_of_business": "软件开发、系统集成、信息技术咨询服务"
+    },
+    "qualifications": [
+        "ISO9001质量管理体系认证",
+        "ISO27001信息安全管理体系认证",
+        "CMMI 3级认证",
+        "高新技术企业证书",
+        "软件企业认定证书"
+    ],
+    "past_projects": [
+        {
+            "project_name": "XX市政府数字化转型项目",
+            "client": "XX市政府",
+            "amount": "860万元",
+            "completion_date": "2024年3月",
+            "description": "包含政务云平台搭建、数据中台建设、业务系统开发"
+        },
+        {
+            "project_name": "XX银行核心系统升级",
+            "client": "XX银行",
+            "amount": "1200万元",
+            "completion_date": "2023年12月",
+            "description": "核心业务系统升级、数据迁移、性能优化"
+        },
+        {
+            "project_name": "XX集团ERP系统实施",
+            "client": "XX集团公司",
+            "amount": "650万元",
+            "completion_date": "2023年6月",
+            "description": "ERP系统实施、流程优化、系统集成"
+        }
+    ],
+    "team_members": [
+        {"role": "项目经理", "name": "王五", "experience": "15年从业经验，PMP认证"},
+        {"role": "技术负责人", "name": "赵六", "experience": "12年从业经验，系统架构师"},
+        {"role": "开发工程师", "name": "孙七", "experience": "8年从业经验，高级开发工程师"},
+        {"role": "质量工程师", "name": "周八", "experience": "10年从业经验"}
+    ]
+}

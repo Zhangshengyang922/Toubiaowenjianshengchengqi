@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output files (生成的投标文件不上传)
+output/*.docx
+output/*.pdf
+
+# Config (含 API Key 不上传)
+config.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log

@@ -1,0 +1,15 @@
+{
+  "generated_at": "2026-07-08T15:50:53.188123",
+  "input_dir": "D:\\下载\\Quark\\bidding_document_generator-main\\input",
+  "output_dir": "D:\\下载\\Quark\\bidding_document_generator-main\\output",
+  "total": 1,
+  "success": 1,
+  "failed": 0,
+  "details": [
+    {
+      "status": "success",
+      "file": "README.md",
+      "output": "D:\\下载\\Quark\\bidding_document_generator-main\\output\\bid_投标文件.docx"
+    }
+  ]
+}

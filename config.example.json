@@ -1,0 +1,10 @@
+{
+    "_description": "投标配置示例 —— 复制此文件为 config.json 并修改",
+    "bid_info": {
+        "bid_amount": "________",
+        "implementation_period": "____天/月",
+        "warranty_period": "____年",
+        "submission_date": "2025年01月15日",
+        "bid_remark": "完全响应招标文件全部要求"
+    }
+}
