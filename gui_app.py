@@ -62,11 +62,19 @@ class BiddingApp:
         self.is_processing = False
         self.cancel_requested = False
 
-        # 默认路径（exe 模式下使用用户文档目录，避免 Program Files 权限问题）
+        # 默认路径
         if getattr(sys, 'frozen', False):
-            user_docs = os.path.join(os.path.expanduser('~'), 'Documents', '招投标文件')
-            self._input_dir = tk.StringVar(value=os.path.join(user_docs, 'input'))
-            self._output_dir = tk.StringVar(value=os.path.join(user_docs, 'output'))
+            # exe 模式: 优先使用 exe 同目录下的 input/output（方便携带）
+            exe_input = os.path.join(BASE_DIR, 'input')
+            exe_output = os.path.join(BASE_DIR, 'output')
+            if os.path.isdir(exe_input) and os.listdir(exe_input):
+                self._input_dir = tk.StringVar(value=exe_input)
+                self._output_dir = tk.StringVar(value=exe_output)
+            else:
+                # 兜底: 用户文档目录
+                user_docs = os.path.join(os.path.expanduser('~'), 'Documents', '招投标文件')
+                self._input_dir = tk.StringVar(value=os.path.join(user_docs, 'input'))
+                self._output_dir = tk.StringVar(value=os.path.join(user_docs, 'output'))
         else:
             self._input_dir = tk.StringVar(value=os.path.join(BASE_DIR, 'input'))
             self._output_dir = tk.StringVar(value=os.path.join(BASE_DIR, 'output'))
@@ -174,6 +182,9 @@ class BiddingApp:
         self._file_count_var = tk.StringVar()
         ttk.Label(status_frame, textvariable=self._file_count_var,
                   foreground='gray').pack(side=tk.RIGHT)
+
+        # 启动后自动扫描文件
+        self.root.after(500, self._on_scan)
 
     def _build_settings(self, parent):
         """构建设置区"""
@@ -355,7 +366,7 @@ class BiddingApp:
             self._put_msg('\n未发现招标文件！请确认目录中有 .docx 招标文件', 'WARN')
 
         # 更新状态栏
-        self._queue.put(('file_count', len(self._bidding_files)))
+        self.msg_queue.put(('file_count', len(self._bidding_files)))
         self._finish_task(f'扫描完成 — 发现 {len(self._bidding_files)} 个招标文件')
 
     def _do_scan_then_generate(self):
@@ -532,11 +543,11 @@ class BiddingApp:
 
     def _log_msg(self, msg: str, tag: str = 'INFO'):
         """线程安全地记录日志"""
-        self._queue.put(('log', (msg, tag)))
+        self.msg_queue.put(('log', (msg, tag)))
 
     def _put_msg(self, msg: str, tag: str = 'INFO'):
         """直接入队消息（工作线程调用）"""
-        self._queue.put(('log', (msg, tag)))
+        self.msg_queue.put(('log', (msg, tag)))
 
     # ══════════════════════════════════════════════
     #  消息队列处理（GUI 线程）
