@@ -83,13 +83,13 @@ def build():
         exe_path = os.path.join(BASE_DIR, 'dist', f'{output_name}.exe')
         print()
         print('=' * 60)
-        print(f'  ✓ 打包成功!')
-        print(f'  输出: {exe_path}')
+        print(f'  [OK] Build Success')
+        print(f'  Output: {exe_path}')
         print('=' * 60)
     else:
         print()
         print('=' * 60)
-        print(f'  ✗ 打包失败，退出码: {result.returncode}')
+        print(f'  [FAIL] Build failed, exit code: {result.returncode}')
         print('=' * 60)
         sys.exit(result.returncode)
 

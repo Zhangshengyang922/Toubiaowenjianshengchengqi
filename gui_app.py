@@ -21,17 +21,25 @@ from tkinter import ttk, filedialog, messagebox, scrolledtext
 from datetime import datetime
 
 # ── 路径处理（支持 PyInstaller 打包后的路径） ──
-def _get_base_dir():
-    """获取应用根目录"""
+def _get_app_dir():
+    """获取应用程序所在目录（input/output 等用户数据存放处）"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
-BASE_DIR = _get_base_dir()
+def _get_resource_dir():
+    """获取资源目录（data/templates/src 等打包资源）"""
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 把 --add-data 文件释放到 sys._MEIPASS
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
+
+APP_DIR = _get_app_dir()
+RESOURCE_DIR = _get_resource_dir()
 
 # 添加 src 到路径
-sys.path.insert(0, os.path.join(BASE_DIR, 'src'))
-sys.path.insert(0, BASE_DIR)
+sys.path.insert(0, os.path.join(RESOURCE_DIR, 'src'))
+sys.path.insert(0, RESOURCE_DIR)
 
 from version import __version__, __app_name__, __repo_url__
 from src.auto_updater import AutoUpdater
@@ -51,7 +59,7 @@ class BiddingApp:
 
         # 设置窗口图标（如果有的话）
         try:
-            icon_path = os.path.join(BASE_DIR, 'data', 'icon.ico')
+            icon_path = os.path.join(RESOURCE_DIR, 'data', 'icon.ico')
             if os.path.exists(icon_path):
                 self.root.iconbitmap(icon_path)
         except Exception:
@@ -65,8 +73,8 @@ class BiddingApp:
         # 默认路径
         if getattr(sys, 'frozen', False):
             # exe 模式: 优先使用 exe 同目录下的 input/output（方便携带）
-            exe_input = os.path.join(BASE_DIR, 'input')
-            exe_output = os.path.join(BASE_DIR, 'output')
+            exe_input = os.path.join(APP_DIR, 'input')
+            exe_output = os.path.join(APP_DIR, 'output')
             if os.path.isdir(exe_input) and os.listdir(exe_input):
                 self._input_dir = tk.StringVar(value=exe_input)
                 self._output_dir = tk.StringVar(value=exe_output)
@@ -76,8 +84,8 @@ class BiddingApp:
                 self._input_dir = tk.StringVar(value=os.path.join(user_docs, 'input'))
                 self._output_dir = tk.StringVar(value=os.path.join(user_docs, 'output'))
         else:
-            self._input_dir = tk.StringVar(value=os.path.join(BASE_DIR, 'input'))
-            self._output_dir = tk.StringVar(value=os.path.join(BASE_DIR, 'output'))
+            self._input_dir = tk.StringVar(value=os.path.join(APP_DIR, 'input'))
+            self._output_dir = tk.StringVar(value=os.path.join(APP_DIR, 'output'))
         self._company_name = tk.StringVar()
         self._legal_rep = tk.StringVar()
         self._authorized_person = tk.StringVar()
@@ -551,7 +559,8 @@ class BiddingApp:
 
     def _save_default_config(self, company: dict):
         """保存公司信息到默认配置文件"""
-        config_dir = os.path.join(BASE_DIR, 'data')
+        # exe 模式下保存到 APP_DIR/data/（持久化），开发模式保存到 RESOURCE_DIR/data/
+        config_dir = os.path.join(APP_DIR, 'data')
         os.makedirs(config_dir, exist_ok=True)
         config_path = os.path.join(config_dir, 'company_profile.json')
         try:
@@ -687,7 +696,7 @@ def main():
     """启动 GUI 应用"""
     # 确保输入输出目录存在
     for d in ['input', 'output']:
-        p = os.path.join(BASE_DIR, d)
+        p = os.path.join(APP_DIR, d)
         os.makedirs(p, exist_ok=True)
 
     root = tk.Tk()

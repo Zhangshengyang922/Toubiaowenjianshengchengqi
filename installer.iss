@@ -17,7 +17,7 @@
 #define MyAppURL "https://github.com/Zhangshengyang922/Toubiaowenjianshengchengqi"
 #define MyAppExeName "BiddingDocGen_v1.0.0.exe"
 ; 以下路径请根据实际情况修改
-#define MySourceDir "d:\下载\Quark\bidding_document_generator-main"
+#define MySourceDir "."
 
 [Setup]
 ; 安装包基本信息
