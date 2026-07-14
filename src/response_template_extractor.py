@@ -37,6 +37,29 @@ _UNIQUE_FORMAT_RE = re.compile(
     r'((?:格式|附件|附表|表格|附录)\s*[零一二三四五六七八九十\d]+[-–—.\u2013\u2014\u2015]?[零一二三四五六七八九十\d]*)'
 )
 
+# ── 标题自动识别正则 ──
+# 一级标题：格式X-Y、附件X、附表X 等（响应文件的主要章节）
+_LEVEL1_FORMAT_RE = re.compile(
+    r'^\s*(?:格式|附件|附表|表格|附录)\s*[零一二三四五六七八九十\d]+[-–—·.\u2013\u2014\u2015]?[零一二三四五六七八九十\d]*'
+)
+# 一级标题：一、 二、 三、 等中文序号开头（加粗且较短，用于格式章节内的一级标题）
+_LEVEL1_CN_RE = re.compile(r'^\s*[一二三四五六七八九十]+[、，．.]\s*\S')
+# 二级标题：（一）（二）（1）（2）等括号序号开头
+_LEVEL2_PAREN_RE = re.compile(r'^\s*[（(]\s*[一二三四五六七八九十\d]+\s*[）)]\s*\S')
+# 排除：注、说明、注意等不是标题
+_NOT_HEADING_RE = re.compile(
+    r'^\s*(?:注\s*[：:意]|说明\s*[：:]|注意\s*[：:事项]|特别提醒|重要提示|提示\s*[：:]|备注\s*[：:]|※|致\s*[：:])'
+)
+# 排除：项目编号、供应商盖章、日期、签名、附表、纯序号等
+_EXCLUDE_PATTERNS = [
+    re.compile(r'^\s*(?:项目编号|项目名称)\s*[：:]'),
+    re.compile(r'^\s*供应商\s*[：:].*(?:盖章|公章|签字)'),
+    re.compile(r'^\s*日\s*期\s*[：:]'),
+    re.compile(r'^\s*附表\s*[：:]?\s*$'),
+    re.compile(r'^\s*最后报价表\s*$'),
+    re.compile(r'^\s*[一二三四五六七八九十\d]+\s*[、，,\.．]\s*$'),
+]
+
 
 class ResponseTemplateExtractor:
     """从招标文件DOCX提取响应文件格式章节，填充后生成响应文件"""
@@ -187,6 +210,15 @@ class ResponseTemplateExtractor:
             cover_start = 0
             cover_end = 0
 
+        # ── 清除所有元素的旧 outlineLvl（源文档可能残留）──
+        for elem in ch7_elements:
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag == 'p':
+                pPr = elem.find(f'{{{W}}}pPr')
+                if pPr is not None:
+                    for old in pPr.findall(f'{{{W}}}outlineLvl'):
+                        pPr.remove(old)
+
         print(
             f"    [调试] 共 {len(ch7_elements)} 个元素（含 {table_count} 个表格），"
             f"封面索引: {cover_start}~{cover_end}"
@@ -195,6 +227,8 @@ class ResponseTemplateExtractor:
         # 第二步：封面 → 分页 → 目录 → 分页 → 正文
         # 2.1 跳过"第X章 响应文件格式"及编制须知，只保留封面
         #    封面内除签名区（供应商/法定代表人/日期/签字/盖章/授权）外，统一按标题格式设置
+        #    封面标题（项目名称行）设为一级标题 outlineLvl=0
+        project_name = fill_data.get('project_name', '')
         signature_keywords = ['供应商', '法定代表人', '签字', '盖章', '授权']
         for i in range(cover_start, cover_end):
             elem = ch7_elements[i]
@@ -204,6 +238,9 @@ class ResponseTemplateExtractor:
                 is_signature = any(kw in text for kw in signature_keywords) or re.search(r'^\s*日\s*期', text)
                 if not is_signature:
                     self._apply_title_format(elem)
+                # 封面标题行（含项目名的段落）→ 文档一级标题
+                if project_name and project_name in text and len(text.strip()) <= 80:
+                    self._set_outline_level(elem, 0)
             body.append(elem)
 
 
@@ -213,7 +250,8 @@ class ResponseTemplateExtractor:
             self._add_section_break(body)
             self._add_toc(new_doc, fill_data, ch7_elements, cover_end)
 
-        # 2.3 分页符 + 正文
+        # 2.3 分页符 + 正文（先识别标题层级，再写入）
+        self._classify_headings(ch7_elements, cover_end)
         self._add_section_break(body)
         for i in range(cover_end, len(ch7_elements)):
             body.append(ch7_elements[i])
@@ -304,6 +342,118 @@ class ResponseTemplateExtractor:
             if t.text:
                 texts.append(t.text)
         return ''.join(texts)
+
+    # ==================== 标题自动识别：一级/二级标题 ====================
+
+    def _classify_headings(self, elements: list, start_idx: int = 0):
+        """
+        自动识别正文中的一级标题和二级标题，并添加 outlineLvl 属性。
+
+        策略（纯文本+格式特征）：
+
+        一级标题 (outlineLvl=0)：
+        - "格式X-Y / 附件X / 附表X" 等 —— 响应文件的主格式标记
+        - "一、xxx / 二、xxx" —— 中文序号开头、加粗、且简短（≤25字）
+
+        二级标题 (outlineLvl=1)：
+        - "（一）/（二）/（1）/（2）" 等括号序号开头、加粗、且简短（≤20字）
+
+        排除规则：
+        - "注/说明/注意/重要提示/致/备注" 开头的不算标题
+        - 项目编号行、供应商盖章行、日期行、附表行不算标题
+        - 纯序号行（如 "1、" 后面无实质内容）不算标题
+        """
+        # 重新识别标题（旧 outlineLvl 已在 _build_new_document 中统一清除）
+        for i in range(start_idx, len(elements)):
+            elem = elements[i]
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag != 'p':
+                continue
+
+            text = self._get_element_text(elem).strip()
+            if not text:
+                continue
+
+            # 排除非标题模式
+            if _NOT_HEADING_RE.match(text):
+                continue
+            if any(pat.search(text) for pat in _EXCLUDE_PATTERNS):
+                continue
+
+            is_bold = self._element_has_bold(elem)
+            level = None
+
+            # ── 规则1：格式/附件/附表 → 一级标题 ──
+            if _LEVEL1_FORMAT_RE.match(text):
+                level = 0
+
+            # ── 规则2：一、二、三、... 中文序号 → 一级标题（加粗 + ≤25字） ──
+            elif _LEVEL1_CN_RE.match(text) and is_bold and len(text) <= 25:
+                level = 0
+
+            # ── 规则3：（一）（二）（1）（2）... 括号序号 → 二级标题（加粗 + ≤20字） ──
+            elif _LEVEL2_PAREN_RE.match(text) and is_bold and len(text) <= 20:
+                level = 1
+
+            if level is not None:
+                self._set_outline_level(elem, level)
+                if not is_bold:
+                    self._ensure_bold(elem)
+
+    @staticmethod
+    def _element_has_bold(element) -> bool:
+        """检查元素中是否有加粗段"""
+        for r in element.findall(f'.//{{{W}}}r'):
+            rPr = r.find(f'{{{W}}}rPr')
+            if rPr is not None and rPr.find(f'{{{W}}}b') is not None:
+                return True
+        return False
+
+    @staticmethod
+    def _element_is_all_bold(element) -> bool:
+        """检查元素是否所有文本段都加粗（排除空段）"""
+        has_text = False
+        for r in element.findall(f'.//{{{W}}}r'):
+            t = r.find(f'{{{W}}}t')
+            if t is not None and (t.text or '').strip():
+                has_text = True
+                rPr = r.find(f'{{{W}}}rPr')
+                if rPr is None or rPr.find(f'{{{W}}}b') is None:
+                    return False
+        return has_text
+
+    @staticmethod
+    def _is_signature_or_date(text: str) -> bool:
+        """判断文本是否为签名/日期行"""
+        return bool(
+            re.search(r'(?:供应商|法定代表人|授权代表|签字|盖章|日期[：:]|时间[：:]|年\s*月\s*日)', text)
+        )
+
+    @staticmethod
+    def _set_outline_level(element, level: int):
+        """给段落元素设置 outlineLvl"""
+        pPr = element.find(f'{{{W}}}pPr')
+        if pPr is None:
+            pPr = etree.Element(f'{{{W}}}pPr')
+            element.insert(0, pPr)
+        # 移除已有 outlineLvl
+        for old in pPr.findall(f'{{{W}}}outlineLvl'):
+            pPr.remove(old)
+        ol = etree.Element(f'{{{W}}}outlineLvl')
+        ol.set(qn('w:val'), str(level))
+        pPr.append(ol)
+
+    @staticmethod
+    def _ensure_bold(element):
+        """确保元素中所有文本段加粗"""
+        for r in element.findall(f'.//{{{W}}}r'):
+            rPr = r.find(f'{{{W}}}rPr')
+            if rPr is None:
+                rPr = etree.Element(f'{{{W}}}rPr')
+                r.insert(0, rPr)
+            if rPr.find(f'{{{W}}}b') is None:
+                b = etree.Element(f'{{{W}}}b')
+                rPr.append(b)
 
     # ==================== 目录生成（无硬编码格式假设） ====================
 
