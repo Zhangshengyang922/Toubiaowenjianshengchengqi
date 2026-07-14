@@ -6,4 +6,4 @@
 """
 __version__ = "1.0.0"
 __app_name__ = "招投标文件自动生成系统"
-__repo_url__ = "https://github.com/YOUR_USERNAME/bidding_document_generator"  # ⚠️ 请替换为实际仓库地址
+__repo_url__ = "https://github.com/Zhangshengyang922/Toubiaowenjianshengchengqi"

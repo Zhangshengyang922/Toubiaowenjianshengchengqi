@@ -13,8 +13,8 @@
 #define MyAppName "招投标文件自动生成系统"
 #define MyAppNameEn "BiddingDocGen"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "Your Company Name"
-#define MyAppURL "https://github.com/YOUR_USERNAME/bidding_document_generator"
+#define MyAppPublisher "ZhangShengYang"
+#define MyAppURL "https://github.com/Zhangshengyang922/Toubiaowenjianshengchengqi"
 #define MyAppExeName "BiddingDocGen_v1.0.0.exe"
 ; 以下路径请根据实际情况修改
 #define MySourceDir "d:\下载\Quark\bidding_document_generator-main"
