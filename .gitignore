@@ -33,3 +33,7 @@ config.json
 
 # Logs
 *.log
+
+# PyInstaller
+*.spec
+*.manifest

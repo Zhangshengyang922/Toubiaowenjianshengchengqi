@@ -1,7 +1,44 @@
 # 投标响应文件生成器 — 修改痕迹总结
 
 > 本文档记录所有算法和识别逻辑的修改，以便换上新的招标文件后按相同的逻辑运行。
-> 最后更新：2026-07-14（v6.1 标题识别鲁棒性增强+章节边界修复）
+> 最后更新：2026-07-14（v2.0 GUI桌面应用 + 自动更新）
+
+---
+
+## v2.0 重大更新：GUI桌面应用 + 自动更新
+
+| 新增文件 | 说明 |
+|----------|------|
+| `gui_app.py` | tkinter 桌面应用，可视化操作，支持扫描/配置/一键生成 |
+| `src/auto_updater.py` | 自动更新模块，启动时检查 GitHub Releases |
+| `version.py` | 版本管理文件，修改后自动触发更新提示 |
+| `build.py` | PyInstaller 打包脚本 → 生成单文件 .exe |
+| `build_all.bat` | 一键构建脚本（打包 + 安装包） |
+| `installer.iss` | Inno Setup 安装包脚本（专业 Windows 安装器） |
+| `release.py` | 版本发布脚本 |
+| `requirements-gui.txt` | GUI 应用精简依赖（不含 AI/Neo4j 等） |
+
+**GUI 功能**：
+- 可视化选择招标文件目录
+- 公司信息编辑/加载/保存
+- 一键扫描并生成投标响应文件
+- 实时日志输出，带颜色标记
+- 生成完成后自动打开输出文件夹
+- 状态栏显示文件统计
+
+**自动更新机制**：
+- 启动时静默检查 GitHub Releases
+- 发现新版本时弹窗提示，一键打开下载页
+- 版本号比较使用语义化版本（`packaging.version`）
+
+**打包说明**：
+- `pip install pyinstaller && python build.py` → 生成 `.exe`（~97MB）
+- 安装 Inno Setup 后运行 `build_all.bat` → 生成 `.exe` 安装包
+- 将 `installer.iss` 中的仓库地址替换为实际地址
+
+**发布前请修改**：
+- `version.py` 中的 `__repo_url__` 替换为实际 GitHub 仓库地址
+- `installer.iss` 中的 `#define MyAppPublisher` 和 `#define MyAppURL`
 
 ---
 
