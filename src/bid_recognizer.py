@@ -67,16 +67,18 @@ class BidFileRecognizer:
 
     # ===== 核心识别逻辑 =====
 
-    def scan_directory(self) -> Dict[str, List[Dict]]:
+    def scan_directory(self, progress_callback=None) -> Dict[str, List[Dict]]:
         """
         扫描目录，返回分类结果
-        
+
+        Args:
+            progress_callback: 可选的进度回调，签名为 (filename, info) -> None
+
         Returns:
             {
                 'bidding_docs': [...],    # 可处理的招标/采购文件（全部 .docx）
                 'other_files': [...],     # 其他支持的文件（PDF/TXT等，供参考）
                 'unrecognized': [...],    # 无法读取/文本过短
-                'all_processable': [...], # ⭐ 全部可处理文件（bidding_docs 的子集）
             }
         """
         result = {
@@ -102,6 +104,11 @@ class BidFileRecognizer:
             info = self._analyze_file(filepath)
             category = info['category']
             result[category].append(info)
+            if progress_callback is not None:
+                try:
+                    progress_callback(os.path.basename(filepath), info)
+                except Exception:
+                    pass
 
         return result
 

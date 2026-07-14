@@ -331,7 +331,7 @@ class BiddingApp:
         self._set_ui_state(tk.DISABLED)
         self._progress.start()
         self._status_var.set(status_msg)
-        self._log.clear()
+        self._log.delete('1.0', tk.END)
         self._log_msg(f'═══ {__app_name__} v{__version__} ═══', 'INFO')
         self._log_msg(f'{status_msg}\n')
 
@@ -353,7 +353,7 @@ class BiddingApp:
         self._cancel_btn.config(state=tk.NORMAL if state == tk.DISABLED else tk.DISABLED)
 
     def _do_scan(self):
-        """后台：扫描文件"""
+        """后台：扫描文件（只扫描一次，并实时输出进度）"""
         input_dir = self._input_dir.get()
         self._put_msg(f'扫描目录: {input_dir}', 'INFO')
 
@@ -364,11 +364,45 @@ class BiddingApp:
 
         recognizer = BidFileRecognizer(input_dir)
 
-        # ⭐ 获取所有可处理文件（docx 无条件纳入，不再按关键字过滤）
-        all_files = recognizer.get_all_processable()
-        self._scan_result = recognizer.scan_directory()
+        def _progress(filename, info):
+            """每个文件分析完成后的进度回调"""
+            size = info.get('size_kb', '?')
+            conf = info.get('confidence', '-')
+            category = info.get('category', '-')
+            self._put_msg(f'  分析: {filename} ({size}KB, {category}, 置信度:{conf})', 'DIM')
 
-        # 分离已排除的（看起来像已生成的投标文件）和可处理的
+        # 只扫描一次，同时输出进度
+        self._scan_result = recognizer.scan_directory(progress_callback=_progress)
+
+        # 基于扫描结果计算可处理文件
+        all_files = []
+        for f in self._scan_result['bidding_docs']:
+            f['can_process'] = True
+            all_files.append(f)
+
+        for f in self._scan_result['unrecognized']:
+            ext = f.get('extension', '').lower()
+            if ext in recognizer.ALWAYS_PROCESSABLE:
+                f['can_process'] = True
+                if f.get('text_length', 0) >= 50:
+                    f['confidence'] = '低'
+                    f['note'] = '文件内容与常见招标关键词匹配度低，但可以尝试处理'
+                else:
+                    f['confidence'] = '极低'
+                    f['note'] = '无法读取文件内容，但仍可尝试处理'
+                all_files.append(f)
+
+        for f in self._scan_result['other_files']:
+            if f.get('bidding_score', 0) >= 1:
+                f['can_process'] = True
+                f['note'] = '非 DOCX 格式，语义匹配度有限'
+                all_files.append(f)
+
+        # 标记被排除的文件（疑似已生成的投标文件）
+        for f in all_files:
+            f['is_excluded'] = recognizer._looks_like_bid_response(f['filename'])
+
+        # 分离已排除和可处理的
         self._bidding_files = [f for f in all_files if not f.get('is_excluded')]
         excluded = [f for f in all_files if f.get('is_excluded')]
 
