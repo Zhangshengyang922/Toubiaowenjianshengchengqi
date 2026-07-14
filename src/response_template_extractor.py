@@ -144,19 +144,19 @@ class ResponseTemplateExtractor:
         new_doc = Document()
 
         for sec in new_doc.sections:
-            sec.top_margin = Cm(2.54)
-            sec.bottom_margin = Cm(2.54)
-            sec.left_margin = Cm(3.17)
-            sec.right_margin = Cm(3.17)
+            sec.top_margin = Cm(2.5)
+            sec.bottom_margin = Cm(2.5)
+            sec.left_margin = Cm(2.5)
+            sec.right_margin = Cm(2.5)
+
 
         body = new_doc.element.body
         src_body = src_doc.element.body
 
-        # 第一步：按 body 元素顺序收集第七章的所有元素
+        # 第一步：按 body 元素顺序收集格式章节的所有元素
         para_count = 0
         table_count = 0
         ch7_elements = []
-        cover_end_index = 0  # 0 = 未检测到独立封面
 
         for child in src_body:
             tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
@@ -181,51 +181,121 @@ class ResponseTemplateExtractor:
                     ch7_elements.append(cloned)
                     table_count += 1
 
-        # ── 封面截止检测：找到第二个独立格式标记即为封面结束 ──
-        cover_end_index = self._detect_cover_end(ch7_elements)
+        # ── 封面检测：定位封面起止 ──
+        cover_start, cover_end = self._detect_cover_end(ch7_elements)
+        if cover_start < 0:
+            cover_start = 0
+            cover_end = 0
 
-        print(f"    [调试] 共 {len(ch7_elements)} 个元素（含 {table_count} 个表格），封面截止索引: {cover_end_index}")
+        print(
+            f"    [调试] 共 {len(ch7_elements)} 个元素（含 {table_count} 个表格），"
+            f"封面索引: {cover_start}~{cover_end}"
+        )
 
         # 第二步：封面 → 分页 → 目录 → 分页 → 正文
-        # 2.1 添加封面
-        for i in range(cover_end_index):
-            body.append(ch7_elements[i])
+        # 2.1 跳过"第X章 响应文件格式"及编制须知，只保留封面
+        #    封面内除签名区（供应商/法定代表人/日期/签字/盖章/授权）外，统一按标题格式设置
+        signature_keywords = ['供应商', '法定代表人', '签字', '盖章', '授权']
+        for i in range(cover_start, cover_end):
+            elem = ch7_elements[i]
+            tag = elem.tag.split('}')[-1] if '}' in elem.tag else elem.tag
+            if tag == 'p':
+                text = self._get_element_text(elem)
+                is_signature = any(kw in text for kw in signature_keywords) or re.search(r'^\s*日\s*期', text)
+                if not is_signature:
+                    self._apply_title_format(elem)
+            body.append(elem)
 
-        # 2.2 分页符 + 目录（仅当存在独立封面时插入目录）
-        if cover_end_index > 0:
+
+
+        # 2.2 分页符 + 目录（封面存在且正文存在时才插入）
+        if cover_end > cover_start and cover_end < len(ch7_elements):
             self._add_section_break(body)
-            self._add_toc(new_doc, fill_data, ch7_elements, cover_end_index)
+            self._add_toc(new_doc, fill_data, ch7_elements, cover_end)
 
         # 2.3 分页符 + 正文
         self._add_section_break(body)
-        for i in range(cover_end_index, len(ch7_elements)):
+        for i in range(cover_end, len(ch7_elements)):
             body.append(ch7_elements[i])
 
         return new_doc
 
-    def _detect_cover_end(self, ch7_elements: list) -> int:
-        """
-        自动检测封面截止位置。
 
-        策略：按顺序扫描元素，记录出现的独立格式标记。
-        当找到第2个不同的格式标记时，之前的元素即为封面。
-        这样无论格式编号是"格式1-1"、"附件一"还是其他命名，都能正确识别。
-
-        返回封面元素数量；若未检测到独立封面则返回0。
+    def _detect_cover_end(self, ch7_elements: list) -> tuple:
         """
-        seen_formats = []
+        自动检测封面起止位置。
+
+        策略：
+        1. 先找 "封面" / "封面格式" 关键字，作为封面起点
+        2. 再找封面之后的第一个实质性格式/内容标记，作为封面终点
+        3. 支持 "格式自拟" 这种无编号但标志内容开始的文本
+
+        返回 (cover_start, cover_end)：
+        - cover_start: 封面起始索引（-1 表示未找到封面）
+        - cover_end: 封面结束索引（第一个非封面元素）
+        """
+        cover_start = -1
         for i, elem in enumerate(ch7_elements):
             text = self._get_element_text(elem)
-            m = _UNIQUE_FORMAT_RE.search(text)
-            if m:
-                fmt_key = m.group(1)
-                # 归一化处理（去空格、统一连字符）
-                normalized = re.sub(r'\s+', '', fmt_key).replace('\u2013','-').replace('\u2014','-').replace('\u2015','-')
-                if normalized not in seen_formats:
-                    seen_formats.append(normalized)
-                    if len(seen_formats) >= 2:
-                        return i  # 第2个格式标记之前 = 封面
-        return 0  # 未检测到独立封面，不做封面/目录分离
+            if re.search(r'封面格式?\s*[:：]?', text):
+                cover_start = i
+                break
+
+        if cover_start < 0:
+            return -1, 0
+
+        # 封面后的第一个实质格式标记
+        for i in range(cover_start + 1, len(ch7_elements)):
+            text = self._get_element_text(ch7_elements[i])
+            if (
+                _UNIQUE_FORMAT_RE.search(text)
+                or '格式自拟' in text
+                or re.search(r'^\s*(?:[一二三四五六七八九十]+[、.．])', text.strip())
+            ):
+                return cover_start, i
+
+        return cover_start, len(ch7_elements)
+
+    def _apply_title_format(self, p_elem):
+        """把段落统一设为宋体、四号、1.5 倍行距"""
+        # 设置所有 run 的字体和字号
+        for r in p_elem.findall(f'.//{{{W}}}r'):
+            rPr = r.find(f'{{{W}}}rPr')
+            if rPr is None:
+                rPr = etree.Element(f'{{{W}}}rPr')
+                r.insert(0, rPr)
+
+            rFonts = rPr.find(f'{{{W}}}rFonts')
+            if rFonts is None:
+                rFonts = etree.Element(f'{{{W}}}rFonts')
+                rPr.append(rFonts)
+            rFonts.set(qn('w:eastAsia'), '宋体')
+            rFonts.set(qn('w:ascii'), '宋体')
+
+            sz = rPr.find(f'{{{W}}}sz')
+            if sz is None:
+                sz = etree.Element(f'{{{W}}}sz')
+                rPr.append(sz)
+            sz.set(qn('w:val'), '28')  # 四号 = 14pt = 28 半磅
+
+            szCs = rPr.find(f'{{{W}}}szCs')
+            if szCs is None:
+                szCs = etree.Element(f'{{{W}}}szCs')
+                rPr.append(szCs)
+            szCs.set(qn('w:val'), '28')
+
+        # 设置段落行距 1.5 倍
+        pPr = p_elem.find(f'{{{W}}}pPr')
+        if pPr is None:
+            pPr = etree.Element(f'{{{W}}}pPr')
+            p_elem.insert(0, pPr)
+        spacing = pPr.find(f'{{{W}}}spacing')
+        if spacing is None:
+            spacing = etree.Element(f'{{{W}}}spacing')
+            pPr.append(spacing)
+        spacing.set(qn('w:line'), '360')      # 1.5 倍行距
+        spacing.set(qn('w:lineRule'), 'auto')
+
 
     def _get_element_text(self, element):
         """获取XML元素中所有文本"""
@@ -237,13 +307,13 @@ class ResponseTemplateExtractor:
 
     # ==================== 目录生成（无硬编码格式假设） ====================
 
-    def _add_toc(self, new_doc, fill_data, ch7_elements, cover_end_index):
-        """在封面后生成目录页"""
+    def _add_toc(self, new_doc, fill_data, ch7_elements, cover_end):
+        """在封面后生成目录页（宋体、四号、1.5 倍行距）"""
         body = new_doc.element.body
 
-        # 收集格式标题及描述
+        # 收集格式标题及描述（从正文开始，避免封面干扰）
         format_titles = []
-        for i, elem in enumerate(ch7_elements):
+        for i, elem in enumerate(ch7_elements[cover_end:], start=cover_end):
             text = self._get_element_text(elem)
             # 匹配 "格式X-X" / "附件X" / "附表X" 等任意格式标记
             m = _FORMAT_MARKER_PATTERN.search(text)
@@ -273,11 +343,11 @@ class ResponseTemplateExtractor:
         # 写入目录标题
         toc_heading = self._make_paragraph(
             '目    录',
-            font_name='宋体', font_size=Pt(16), bold=True,
-            alignment=WD_ALIGN_PARAGRAPH.CENTER
+            font_name='宋体', font_size=Pt(14), bold=True,
+            alignment=WD_ALIGN_PARAGRAPH.CENTER, line_spacing=1.5
         )
         body.append(toc_heading)
-        body.append(self._make_paragraph(''))
+        body.append(self._make_paragraph('', line_spacing=1.5))
 
         # ── 自动按前缀分组 ──
         # 提取每个标题的前缀（如 "格式1"、"格式2"、"附件一" 等）
@@ -296,24 +366,25 @@ class ResponseTemplateExtractor:
                 group_label = group_names.get(gi, f'第{gi+1}部分')
                 body.append(self._make_paragraph(
                     f'{group_label}',
-                    font_name='黑体', font_size=Pt(14), bold=True,
-                    left_indent=Cm(0.5)
+                    font_name='宋体', font_size=Pt(14), bold=True,
+                    left_indent=Cm(0.5), line_spacing=1.5
                 ))
                 for key, title in group:
                     body.append(self._make_paragraph(
                         title,
-                        font_name='仿宋', font_size=Pt(14),
-                        left_indent=Cm(1.5)
+                        font_name='宋体', font_size=Pt(14),
+                        left_indent=Cm(1.5), line_spacing=1.5
                     ))
-                body.append(self._make_paragraph(''))
+                body.append(self._make_paragraph('', line_spacing=1.5))
         else:
             # 单组 → 直接列表
             for key, title in unique_titles:
                 body.append(self._make_paragraph(
                     title,
-                    font_name='仿宋', font_size=Pt(14),
-                    left_indent=Cm(1.5)
+                    font_name='宋体', font_size=Pt(14),
+                    left_indent=Cm(1.5), line_spacing=1.5
                 ))
+
 
     @staticmethod
     def _group_titles(titles: list) -> list:
@@ -344,7 +415,7 @@ class ResponseTemplateExtractor:
         return groups if groups else [titles]
 
     def _make_paragraph(self, text, font_name='仿宋', font_size=None, bold=False,
-                        alignment=None, left_indent=None):
+                        alignment=None, left_indent=None, line_spacing=None):
         """创建格式化的段落"""
         from docx.oxml import OxmlElement
 
@@ -365,6 +436,11 @@ class ResponseTemplateExtractor:
             ind = OxmlElement('w:ind')
             ind.set(qn('w:left'), str(int(left_indent / Cm(1) * 567)))  # EMU
             pPr.append(ind)
+        if line_spacing is not None:
+            spacing = OxmlElement('w:spacing')
+            spacing.set(qn('w:line'), str(int(line_spacing * 240)))
+            spacing.set(qn('w:lineRule'), 'auto')
+            pPr.append(spacing)
         p.append(pPr)
 
         # 文本run
@@ -391,6 +467,7 @@ class ResponseTemplateExtractor:
         p.append(r)
 
         return p
+
 
     def _add_section_break(self, body):
         """添加分页符"""
@@ -447,6 +524,17 @@ class ResponseTemplateExtractor:
         # ==== 项目名称: xxxx项目 / XX项目 ====
         t = re.sub(r'[xX]{2,4}\s*项目', proj_name, t)
         t = re.sub(r'[xX]{2}\s*项目', proj_name, t)
+        # 空格型项目名占位：项目名称：                           
+        t = re.sub(r'项目名称[：:]\s*[xX _]*\s*$', f'项目名称：{proj_name}', t)
+        # （项目名称）
+        t = re.sub(r'（\s*[xX _]*项目名称[xX _]*\s*）', f'（{proj_name}）', t)
+        # （项目名称：           、项目编号：              ）
+        t = re.sub(
+            r'项目名称[：:]\s*[xX _]*\s*[、,，]\s*项目编号[：:]\s*[xX _]*\s*[）)]',
+            f'项目名称：{proj_name}、项目编号：{proj_id}）',
+            t
+        )
+
 
         # ==== 引号内项目名称 ====
         t = re.sub(r'"X{3,10}"', f'"{proj_name}"', t)
@@ -459,8 +547,13 @@ class ResponseTemplateExtractor:
             t = t.replace('（项目编号：XXXX）', f'（项目编号：{proj_id}）')
             t = t.replace('(项目编号：XXXX)', f'(项目编号：{proj_id})')
             t = t.replace('项目编号：XXXX', f'项目编号：{proj_id}')
+            t = re.sub(r'项目编号[：:]\s*[xX_]*\s*$', f'项目编号：{proj_id}', t)
+            t = re.sub(r'项目编号[：:]\s*[xX_]*\s*[,，、;；\.。]?\s*$', f'项目编号：{proj_id}', t)
+            t = re.sub(r'项目编号[：:]\s*[xX _]*\s*[）)]', f'项目编号：{proj_id}）', t)
+
 
         # ==== 日期 ====
+
         if date_val:
             t = re.sub(r'XXX+年XXX+月XXX+日', date_val, t)
             t = re.sub(r'XX年XX月XX日', date_val, t)
@@ -469,6 +562,13 @@ class ResponseTemplateExtractor:
             t = re.sub(r'日\s*期[：:]\s*[xX]{3,4}\s*[。]?', f'日    期：{date_val}', t)
             t = re.sub(r'日期[：:]\s*[xX]{3,4}\s*[。]?', f'日期：{date_val}', t)
             t = re.sub(r'日期[：:]\s*[xX]{3,4}\s*$', f'日期：{date_val}', t)
+            # 空格/空值型日期占位：日期：       年     月    日
+            t = re.sub(r'日\s*期[：:]\s*[xX _]*\s*年\s*[xX _]*\s*月\s*[xX _]*\s*日', f'日    期：{date_val}', t)
+            t = re.sub(r'日期[：:]\s*[xX _]*\s*年\s*[xX _]*\s*月\s*[xX _]*\s*日', f'日期：{date_val}', t)
+            t = re.sub(r'时间[：:]\s*[xX _]*\s*年\s*[xX _]*\s*月\s*[xX _]*\s*日', f'时间：{date_val}', t)
+
+            t = re.sub(r'时间[：:]\s*[年xX _]*\s*年\s*[月xX _]*\s*月\s*[日xX _]*\s*日', f'时间：{date_val}', t)
+
 
         # ==== 采购代理机构 ====
         if agency:
