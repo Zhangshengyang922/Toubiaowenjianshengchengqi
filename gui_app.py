@@ -355,19 +355,45 @@ class BiddingApp:
             return
 
         recognizer = BidFileRecognizer(input_dir)
-        self._scan_result = recognizer.print_report()
-        self._bidding_files = self._scan_result.get('bidding_docs', [])
 
-        self._put_msg(f'\n发现 {len(self._bidding_files)} 个招标文件:')
-        for f in self._bidding_files:
-            self._put_msg(f'  📄 {f["filename"]}', 'SUCCESS')
+        # ⭐ 获取所有可处理文件（docx 无条件纳入，不再按关键字过滤）
+        all_files = recognizer.get_all_processable()
+        self._scan_result = recognizer.scan_directory()
 
-        if not self._bidding_files:
-            self._put_msg('\n未发现招标文件！请确认目录中有 .docx 招标文件', 'WARN')
+        # 分离已排除的（看起来像已生成的投标文件）和可处理的
+        self._bidding_files = [f for f in all_files if not f.get('is_excluded')]
+        excluded = [f for f in all_files if f.get('is_excluded')]
+
+        self._put_msg(f'\n=== 扫描结果 ===')
+
+        # 可处理文件
+        if self._bidding_files:
+            self._put_msg(f'\n可处理文件 ({len(self._bidding_files)} 个):')
+            for f in self._bidding_files:
+                conf = f.get('confidence', '?')
+                conf_icon = {'高': '🟢', '中': '🟡', '低': '🟠', '极低': '🔴'}.get(conf, '⚪')
+                note = f.get('note', '')
+                note_str = f'  ({note})' if note else ''
+                self._put_msg(f'  {conf_icon} {f["filename"]}  [{conf}置信度]{note_str}', 'SUCCESS')
+
+                # 显示匹配到的关键词
+                keywords = f.get('matched_keywords', [])
+                if keywords:
+                    self._put_msg(f'     关键词: {", ".join(keywords[:6])}', 'DIM')
+
+        # 被排除的文件（看起来像已生成的投标文件）
+        if excluded:
+            self._put_msg(f'\n已跳过（疑似已生成的投标文件，{len(excluded)} 个）:')
+            for f in excluded:
+                self._put_msg(f'  ⏭️ {f["filename"]}', 'WARN')
+
+        if not self._bidding_files and not excluded:
+            self._put_msg('\n⚠️ 未发现可处理的文件！', 'WARN')
+            self._put_msg('请将 .docx 招标文件放入输入目录，然后重新扫描', 'WARN')
 
         # 更新状态栏
         self.msg_queue.put(('file_count', len(self._bidding_files)))
-        self._finish_task(f'扫描完成 — 发现 {len(self._bidding_files)} 个招标文件')
+        self._finish_task(f'扫描完成 — 发现 {len(self._bidding_files)} 个可处理文件')
 
     def _do_scan_then_generate(self):
         """后台：扫描 + 生成"""
