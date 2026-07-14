@@ -133,7 +133,8 @@ class ResponseTemplateExtractor:
                 if i <= self.paragraph_start:
                     continue
                 text = p.text.strip()
-                if f'第{next_chap_num}章' in text:
+                # 要求"第X章"出现在行首（真正的章节标题），避免误匹配正文中的引用
+                if re.match(rf'^\s*第{next_chap_num}章', text):
                     self.paragraph_end = i
                     break
 
@@ -387,12 +388,14 @@ class ResponseTemplateExtractor:
             if _LEVEL1_FORMAT_RE.match(text):
                 level = 0
 
-            # ── 规则2：一、二、三、... 中文序号 → 一级标题（加粗 + ≤25字） ──
-            elif _LEVEL1_CN_RE.match(text) and is_bold and len(text) <= 25:
+            # ── 规则2：一、二、三、... 中文序号 → 一级标题（≤25字，不以句号结尾）
+            #        去掉加粗强制要求：不同文档格式不一致，用长度和标点排除更鲁棒
+            elif _LEVEL1_CN_RE.match(text) and len(text) <= 25 and not text.rstrip().endswith('。'):
                 level = 0
 
-            # ── 规则3：（一）（二）（1）（2）... 括号序号 → 二级标题（加粗 + ≤20字） ──
-            elif _LEVEL2_PAREN_RE.match(text) and is_bold and len(text) <= 20:
+            # ── 规则3：（一）（二）（1）（2）... 括号序号 → 二级标题（≤18字，不以句号结尾）
+            #        收紧长度（20→18）：防止响应函中的编号列表被误识别
+            elif _LEVEL2_PAREN_RE.match(text) and len(text) <= 18 and not text.rstrip().endswith('。'):
                 level = 1
 
             if level is not None:
